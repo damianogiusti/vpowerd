@@ -8,6 +8,8 @@ for example Tecnoware). It replaces the ViewPower monitor service.
 - Publishes to MQTT with Home Assistant discovery.
 - Runs in Docker or in a Proxmox LXC. One static binary, about 6 MB of RAM.
 
+![vpowerd dashboard with live data from a Tecnoware 800VA](docs/screenshots/dashboard.png)
+
 The protocol logic comes from a reverse engineering of ViewPower. See
 [docs/REA-findings.md](docs/REA-findings.md) for what was observed and what
 is still unknown.
