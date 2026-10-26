@@ -1,0 +1,24 @@
+#!/sbin/openrc-run
+# OpenRC service for Alpine (e.g. a Proxmox LXC). Settings: /etc/conf.d/vpowerd
+
+name="vpowerd"
+description="vpowerd UPS monitor"
+command="/usr/local/bin/vpowerd"
+command_user="vpowerd:dialout"
+supervisor="supervise-daemon"
+# Restart forever, 5 s apart: a UPS monitor must not stay down.
+respawn_delay=5
+respawn_max=0
+# syslog keeps the log bounded (busybox syslogd rotates /var/log/messages).
+output_logger="logger -t vpowerd -p daemon.info"
+# slog writes to stderr and includes the level, so both streams are info.
+error_logger="logger -t vpowerd -p daemon.info"
+
+depend() {
+	need net
+	use logger
+}
+
+start_pre() {
+	checkpath --directory --mode 0700 --owner vpowerd:dialout /var/lib/vpowerd
+}

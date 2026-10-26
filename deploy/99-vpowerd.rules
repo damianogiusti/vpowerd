@@ -1,0 +1,8 @@
+# Gives the UPS hidraw node a stable name (/dev/ups) and a group the daemon
+# can use. Copy to /etc/udev/rules.d/ on the machine where the USB cable is
+# plugged in (the Proxmox host when using LXC or Docker in a VM/CT), then run:
+#   udevadm control --reload && udevadm trigger
+#
+# 0665:5161 is the most common Voltronic USB ID. Check yours with lsusb and
+# add a line per ID if needed (see transport.KnownUPSIDs).
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0665", ATTRS{idProduct}=="5161", MODE="0660", GROUP="dialout", SYMLINK+="ups"

@@ -1,0 +1,42 @@
+[Unit]
+Description=vpowerd UPS monitor
+Documentation=https://github.com/damianogiusti/vpowerd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=-/etc/vpowerd.env
+ExecStart=/usr/local/bin/vpowerd
+Restart=always
+RestartSec=5
+
+# No root needed: the device is reachable through the dialout group.
+DynamicUser=yes
+# /var/lib/vpowerd keeps settings saved from the web UI (MQTT broker).
+StateDirectory=vpowerd
+StateDirectoryMode=0700
+SupplementaryGroups=dialout
+DevicePolicy=closed
+DeviceAllow=char-hidraw rw
+DeviceAllow=char-ttyUSB rw
+DeviceAllow=char-ttyS rw
+
+# Hardening.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+# The daemon needs ~10 MB. A hard cap turns a leak into a restart, not a hang.
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target

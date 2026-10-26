@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: shellcheck
+        run: shellcheck -s sh install.sh scripts/dist.sh
+
+  # Every push to main refreshes the rolling "edge" release that install.sh
+  # downloads from. No manual releases are needed.
+  edge:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: edge
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sh scripts/dist.sh "main-${GITHUB_SHA::7}"
+      - name: Move the edge tag to this commit
+        run: |
+          git tag -f edge
+          git push -f origin edge
+      - name: Publish the edge release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view edge >/dev/null 2>&1 || gh release create edge --prerelease \
+            --title "edge (built from main)" \
+            --notes "Rebuilt automatically on every push to main. Install with install.sh."
+          gh release upload edge dist/* --clobber

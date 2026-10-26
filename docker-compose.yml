@@ -1,0 +1,40 @@
+services:
+  vpowerd:
+    build: .
+    image: vpowerd:latest
+    container_name: vpowerd
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    # /dev/ups is the stable symlink created by deploy/99-vpowerd.rules.
+    # Inside the container the node is always /dev/hidraw0.
+    devices:
+      - /dev/ups:/dev/hidraw0
+    # GID that owns the device on the host (dialout is 20 on Debian/Proxmox).
+    # Check with: getent group dialout
+    group_add:
+      - "20"
+    environment:
+      VPOWERD_DEVICE: /dev/hidraw0
+      VPOWERD_POLL_INTERVAL: 10s
+      VPOWERD_DEVICE_ID: ups
+      # The MQTT broker can be set from the web UI. These are only first-run defaults.
+      # VPOWERD_MQTT_URL: tcp://192.168.1.10:1883
+      # VPOWERD_MQTT_USER: vpowerd
+      # VPOWERD_MQTT_PASSWORD: change-me
+      # Control commands are off by default. If you enable them, set a token.
+      VPOWERD_ALLOW_CONTROL: "false"
+      # VPOWERD_API_TOKEN: change-me
+    # Settings saved from the web UI (MQTT broker).
+    volumes:
+      - vpowerd-data:/var/lib/vpowerd
+    # The daemon needs ~10 MB; the cap makes a regression visible, not silent.
+    mem_limit: 64m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  vpowerd-data:

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vpowerd UPS</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --text: #1b1f24; --muted: #5f6b7a; --line: #e2e6eb;
+  --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030; --info: #2b6cb0; --accent: #2b6cb0; --accent2: #b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111418; --card: #1a1f25; --text: #e7ebef; --muted: #98a3b0; --line: #2a3139;
+          --ok: #48bb78; --warn: #ecc94b; --bad: #fc8181; --info: #63b3ed; --accent: #63b3ed; --accent2: #ecc94b; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+header h1 { font-size: 20px; margin: 0; flex: 1 1 auto; }
+header .sub { color: var(--muted); font-size: 13px; width: 100%; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 13px;
+         border: 1px solid currentColor; }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); } .info { color: var(--info); }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+.value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.value small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+.detail { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 8px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+section { margin-top: 16px; }
+section > h2 { font-size: 15px; margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.chip.on { color: var(--text); border-color: var(--warn); }
+svg.chart { width: 100%; height: 160px; display: block; }
+svg.chart .grid line { stroke: var(--line); }
+svg.chart text { fill: var(--muted); font-size: 11px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.table-wrap { max-height: 280px; overflow: auto; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+button { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line);
+         background: var(--card); color: var(--text); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.danger { color: var(--bad); border-color: var(--bad); }
+label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+input { font: inherit; width: 110px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line);
+        background: var(--bg); color: var(--text); }
+.error { color: var(--bad); font-size: 13px; margin-top: 8px; min-height: 1em; }
+.two { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 8px; }
+.form input.wide { width: 100%; }
+.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.check input { width: auto; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.note { color: var(--muted); font-size: 12px; }
+.success { color: var(--ok); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">UPS</h1>
+    <span id="mode" class="badge info">connecting…</span>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <div class="grid">
+    <div class="card"><h2>Input</h2><div class="value" id="in-v">–</div><div class="detail" id="in-detail"></div></div>
+    <div class="card"><h2>Output</h2><div class="value" id="out-v">–</div><div class="detail" id="out-detail"></div></div>
+    <div class="card"><h2>Load</h2><div class="value" id="load">–</div><div class="bar"><div id="load-bar"></div></div></div>
+    <div class="card"><h2>Battery</h2><div class="value" id="charge">–</div><div class="detail" id="bat-detail"></div><div class="bar"><div id="charge-bar"></div></div></div>
+    <div class="card"><h2>Runtime</h2><div class="value" id="runtime">–</div><div class="detail" id="temp"></div></div>
+  </div>
+
+  <section class="card">
+    <h2>Status flags</h2>
+    <div class="chips" id="flags"></div>
+  </section>
+
+  <section class="two">
+    <div class="card">
+      <h2>Voltage</h2>
+      <svg class="chart" id="chart-v" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Input</span><span><i style="background:var(--accent2)"></i>Output</span></div>
+    </div>
+    <div class="card">
+      <h2>Load and charge</h2>
+      <svg class="chart" id="chart-p" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Load %</span><span><i style="background:var(--ok)"></i>Charge %</span></div>
+    </div>
+  </section>
+
+  <section class="card" id="controls" hidden>
+    <h2>Controls</h2>
+    <div class="controls">
+      <button data-cmd="beeper_toggle">Toggle beeper</button>
+      <button data-cmd="test_10s">10 s battery test</button>
+      <button data-cmd="test_cancel">Cancel test</button>
+      <button data-cmd="shutdown_cancel">Cancel shutdown</button>
+      <label>Shutdown delay (s)<input id="sd-delay" type="number" min="6" max="5940" value="120"></label>
+      <label>Restore after (min)<input id="sd-restore" type="number" min="0" max="9999" value="1"></label>
+      <button class="danger" id="shutdown">Shutdown output</button>
+    </div>
+    <div class="error" id="cmd-error"></div>
+  </section>
+
+  <section class="card" id="settings">
+    <h2>MQTT / Home Assistant</h2>
+    <div class="row">
+      <span id="mqtt-state" class="badge info">…</span>
+      <span class="note" id="mqtt-detail"></span>
+    </div>
+    <form id="mqtt-form" autocomplete="off">
+      <label class="check"><input type="checkbox" id="mqtt-enabled"> Enable MQTT</label>
+      <div class="form">
+        <label>Broker URL<input class="wide" id="mqtt-url" placeholder="tcp://192.168.1.10:1883"></label>
+        <label>Username<input class="wide" id="mqtt-user" autocomplete="off"></label>
+        <label>Password<input class="wide" id="mqtt-password" type="password" autocomplete="new-password"></label>
+      </div>
+      <label class="check" id="mqtt-clear-label" hidden><input type="checkbox" id="mqtt-clear"> Remove the stored password</label>
+      <details>
+        <summary>Advanced</summary>
+        <div class="form">
+          <label>Client ID<input class="wide" id="mqtt-client"></label>
+          <label>Topic prefix<input class="wide" id="mqtt-prefix"></label>
+          <label>Discovery prefix<input class="wide" id="mqtt-discovery"></label>
+        </div>
+      </details>
+      <div class="row">
+        <label id="token-label" hidden>API token<input id="token" type="password" autocomplete="off"></label>
+        <button type="button" id="mqtt-test">Test connection</button>
+        <button type="submit" id="mqtt-save">Save</button>
+        <span id="mqtt-msg"></span>
+      </div>
+      <p class="note">Saved settings are stored on the server and override the VPOWERD_MQTT_* environment variables.</p>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Events</h2>
+    <div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead><tbody id="events"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Device</h2>
+    <table><tbody id="device"></tbody></table>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const MODE = {
+  line: ["Line", "ok"], battery: ["On battery", "warn"], battery_test: ["Battery test", "info"],
+  standby: ["Standby", "info"], fault: ["Fault", "bad"], unknown: ["Unknown", "info"],
+};
+const FLAGS = [
+  ["utility_fail", "Utility fail"], ["battery_low", "Battery low"], ["bypass_boost_active", "AVR/bypass"],
+  ["ups_failed", "UPS failed"], ["line_interactive", "Line-interactive"], ["self_test_in_progress", "Self test"],
+  ["shutdown_active", "Shutdown active"], ["beeper_on", "Beeper on"],
+];
+const fmt = (v, d = 1) => (v === undefined || v === null) ? "–" : Number(v).toFixed(d);
+const unit = (v, u, d = 1) => `${fmt(v, d)}<small>${u}</small>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function duration(sec) {
+  if (sec === undefined || sec === null) return `<small>not reported</small>`;
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}<small>h</small> ${m}<small>min</small>` : `${m}<small>min</small>`;
+}
+
+function renderStatus(snap) {
+  const id = snap.identity || {};
+  $("title").textContent = id.model || "UPS";
+  $("subtitle").textContent = [id.protocol, snap.device].filter(Boolean).join(" · ") +
+    (snap.last_error ? ` · ${snap.last_error}` : "");
+  const mode = $("mode");
+  if (!snap.connected) {
+    mode.textContent = "Disconnected"; mode.className = "badge bad";
+  }
+  const s = snap.status;
+  if (!s) return;
+  const [label, cls] = MODE[s.mode] || MODE.unknown;
+  mode.textContent = label; mode.className = `badge ${cls}`;
+  $("in-v").innerHTML = unit(s.input_voltage, "V");
+  $("in-detail").textContent = `fault voltage ${fmt(s.input_fault_voltage)} V`;
+  $("out-v").innerHTML = unit(s.output_voltage, "V");
+  $("out-detail").textContent = `${fmt(s.output_frequency)} Hz`;
+  $("load").innerHTML = unit(s.load_percent, "%", 0);
+  $("load-bar").style.width = `${Math.min(100, s.load_percent)}%`;
+  $("charge").innerHTML = unit(s.battery_charge, "%", 0);
+  $("charge-bar").style.width = `${Math.min(100, s.battery_charge)}%`;
+  $("bat-detail").textContent = `${fmt(s.battery_voltage, 2)} V · ${s.battery_charge_source}`;
+  $("runtime").innerHTML = duration(s.runtime_remaining);
+  $("temp").textContent = s.temperature !== undefined ? `temperature ${fmt(s.temperature)} °C` : "";
+  $("flags").innerHTML = FLAGS.map(([k, l]) => `<span class="chip ${s.flags[k] ? "on" : ""}">${l}</span>`).join("");
+  const rating = snap.rating;
+  const rows = [
+    ["Protocol", id.protocol], ["Model", id.model], ["Rated power", id.rated_power ? `${id.rated_power} VA` : ""],
+    ["Firmware", id.firmware], ["Serial", id.serial], ["Device", snap.device],
+    ["Rated voltage", rating ? `${fmt(rating.voltage)} V` : ""], ["Rated frequency", rating ? `${fmt(rating.frequency)} Hz` : ""],
+    ["Rated battery", rating ? `${fmt(rating.battery_voltage)} V` : ""],
+  ].filter(([, v]) => v);
+  $("device").innerHTML = rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
+}
+
+function chart(svg, series, yMin, yMax) {
+  const W = 600, H = 160, P = 4;
+  const all = series.flatMap((s) => s.points);
+  if (all.length < 2) { svg.innerHTML = `<text x="8" y="20">collecting data…</text>`; return; }
+  const t0 = all.reduce((a, p) => Math.min(a, p.t), Infinity), t1 = all.reduce((a, p) => Math.max(a, p.t), -Infinity);
+  if (yMin === undefined) {
+    const ys = all.map((p) => p.y);
+    yMin = Math.floor(Math.min(...ys) - 5); yMax = Math.ceil(Math.max(...ys) + 5);
+  }
+  const x = (t) => P + (W - 2 * P) * (t - t0) / Math.max(1, t1 - t0);
+  const y = (v) => H - P - (H - 2 * P) * (v - yMin) / Math.max(1e-9, yMax - yMin);
+  const grid = [0.25, 0.5, 0.75].map((f) => {
+    const v = yMin + (yMax - yMin) * f;
+    return `<line x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="4" y="${y(v) - 3}">${v.toFixed(0)}</text>`;
+  }).join("");
+  const lines = series.map((s) =>
+    `<polyline fill="none" stroke="${s.color}" stroke-width="2" vector-effect="non-scaling-stroke" points="${
+      s.points.map((p) => `${x(p.t).toFixed(1)},${y(p.y).toFixed(1)}`).join(" ")}"/>`).join("");
+  svg.innerHTML = `<g class="grid">${grid}</g>${lines}`;
+}
+
+function renderHistory(samples) {
+  const pts = (key) => samples.map((s) => ({ t: Date.parse(s.t), y: s[key] }));
+  chart($("chart-v"), [
+    { color: "var(--accent)", points: pts("in_v") },
+    { color: "var(--accent2)", points: pts("out_v") },
+  ]);
+  chart($("chart-p"), [
+    { color: "var(--accent)", points: pts("load") },
+    { color: "var(--ok)", points: pts("charge") },
+  ], 0, 100);
+}
+
+function renderEvents(events) {
+  $("events").innerHTML = events.slice().reverse().map((e) =>
+    `<tr><td>${esc(new Date(e.time).toLocaleString())}</td><td>${esc(e.kind.replaceAll("_", " "))}</td><td>${esc(e.message)}</td></tr>`
+  ).join("") || `<tr><td colspan="3">No events yet</td></tr>`;
+}
+
+async function getJSON(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+
+async function refresh(path, render) {
+  try { render(await getJSON(path)); } catch (e) { console.warn(e); }
+}
+
+function token() {
+  const v = $("token").value;
+  try { if (v) sessionStorage.setItem("vpowerd-token", v); } catch (_) {}
+  return v;
+}
+
+async function send(body) {
+  $("cmd-error").textContent = "";
+  const r = await fetch("/api/command", { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+    $("cmd-error").textContent = e.error;
+  }
+  setTimeout(() => refresh("/api/status", renderStatus), 1500);
+}
+
+async function setupControls() {
+  const caps = await getJSON("/api/capabilities").catch(() => ({ control_enabled: false }));
+  if (!caps.control_enabled) return;
+  $("controls").hidden = false;
+  document.querySelectorAll("button[data-cmd]").forEach((b) =>
+    b.addEventListener("click", () => send({ kind: b.dataset.cmd })));
+  $("shutdown").addEventListener("click", () => {
+    const delay = parseInt($("sd-delay").value, 10), restore = parseInt($("sd-restore").value, 10);
+    if (!confirm(`Cut the UPS output in ${delay} s? Everything connected will lose power.`)) return;
+    send({ kind: "shutdown", delay_seconds: delay, restore_minutes: restore });
+  });
+}
+
+const MQTT_STATE = { connected: ["Connected", "ok"], connecting: ["Connecting", "warn"], disabled: ["Disabled", "info"] };
+
+function authHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const t = token();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  return headers;
+}
+
+function renderMQTTStatus(cfg) {
+  const [label, cls] = MQTT_STATE[cfg.status.state] || MQTT_STATE.disabled;
+  const badge = $("mqtt-state");
+  badge.textContent = label; badge.className = `badge ${cls}`;
+  const parts = [];
+  if (cfg.status.broker) parts.push(cfg.status.broker);
+  if (cfg.status.last_error) parts.push(`last error: ${cfg.status.last_error}`);
+  parts.push(cfg.source === "file" ? "saved from this page" : "from environment");
+  $("mqtt-detail").textContent = parts.join(" · ");
+}
+
+function fillMQTTForm(cfg) {
+  $("mqtt-enabled").checked = cfg.enabled;
+  $("mqtt-url").value = cfg.url;
+  $("mqtt-user").value = cfg.username;
+  $("mqtt-password").value = "";
+  $("mqtt-password").placeholder = cfg.password_set ? "unchanged" : "";
+  $("mqtt-clear").checked = false;
+  $("mqtt-clear-label").hidden = !cfg.password_set;
+  $("mqtt-client").value = cfg.client_id;
+  $("mqtt-prefix").value = cfg.topic_prefix;
+  $("mqtt-discovery").value = cfg.discovery_prefix;
+}
+
+function mqttBody() {
+  const body = {
+    enabled: $("mqtt-enabled").checked,
+    url: $("mqtt-url").value.trim(),
+    username: $("mqtt-user").value.trim(),
+    client_id: $("mqtt-client").value.trim(),
+    topic_prefix: $("mqtt-prefix").value.trim(),
+    discovery_prefix: $("mqtt-discovery").value.trim(),
+  };
+  // Omitting the password keeps the stored one.
+  if ($("mqtt-password").value) body.password = $("mqtt-password").value;
+  else if ($("mqtt-clear").checked) body.password = "";
+  return body;
+}
+
+function mqttMessage(text, ok) {
+  const el = $("mqtt-msg");
+  el.textContent = text;
+  el.className = ok ? "success" : "error";
+}
+
+async function mqttRequest(method, path) {
+  const r = await fetch(path, { method, headers: authHeaders(), body: JSON.stringify(mqttBody()) });
+  const data = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+async function setupSettings() {
+  const caps = await getJSON("/api/capabilities").catch(() => ({ token_required: false }));
+  $("token-label").hidden = !caps.token_required;
+  try { $("token").value = sessionStorage.getItem("vpowerd-token") || ""; } catch (_) {}
+  try {
+    const cfg = await getJSON("/api/settings/mqtt");
+    fillMQTTForm(cfg);
+    renderMQTTStatus(cfg);
+  } catch (e) { mqttMessage(e.message, false); }
+
+  $("mqtt-test").addEventListener("click", async () => {
+    mqttMessage("Testing…", true);
+    try { await mqttRequest("POST", "/api/settings/mqtt/test"); mqttMessage("Broker reachable, credentials accepted.", true); }
+    catch (e) { mqttMessage(e.message, false); }
+  });
+  $("mqtt-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try {
+      const cfg = await mqttRequest("PUT", "/api/settings/mqtt");
+      fillMQTTForm(cfg);
+      renderMQTTStatus(cfg);
+      mqttMessage("Saved.", true);
+    } catch (e) { mqttMessage(e.message, false); }
+  });
+  setInterval(() => refresh("/api/settings/mqtt", renderMQTTStatus), 5000);
+}
+
+refresh("/api/status", renderStatus);
+refresh("/api/history", renderHistory);
+refresh("/api/events", renderEvents);
+setupControls();
+setupSettings();
+setInterval(() => refresh("/api/status", renderStatus), 5000);
+setInterval(() => refresh("/api/history", renderHistory), 30000);
+setInterval(() => refresh("/api/events", renderEvents), 15000);
+</script>
+</body>
+</html>
