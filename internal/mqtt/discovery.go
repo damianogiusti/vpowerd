@@ -66,7 +66,7 @@ func sensorEntities() []entity {
 		{component: componentSensor, key: "runtime_remaining", name: "Runtime remaining", unit: "s", deviceClass: "duration", stateClass: "measurement", include: hasRuntime},
 		{component: componentSensor, key: "temperature", name: "Temperature", unit: "°C", deviceClass: "temperature", stateClass: "measurement", include: hasTemperature},
 		{component: componentBinarySensor, key: "utility_power", name: "Utility power", deviceClass: "power", payloadOn: "true", payloadOff: "false",
-			valueTemplate: "{{ 'false' if value_json.on_battery else 'true' }}", include: always},
+			valueTemplate: "{{ value_json.utility_power | lower }}", include: always},
 		{component: componentBinarySensor, key: "battery_low", name: "Battery low", deviceClass: "battery", payloadOn: "true", payloadOff: "false",
 			valueTemplate: "{{ value_json.battery_low | lower }}", include: always},
 		{component: componentBinarySensor, key: "fault", name: "Fault", deviceClass: "problem", payloadOn: "true", payloadOff: "false",
@@ -124,6 +124,7 @@ type discoveryPayload struct {
 type stateMessage struct {
 	Mode              ups.WorkMode     `json:"mode"`
 	OnBattery         bool             `json:"on_battery"`
+	UtilityPower      bool             `json:"utility_power"`
 	InputVoltage      ups.Volts        `json:"input_voltage"`
 	InputFaultVoltage ups.Volts        `json:"input_fault_voltage"`
 	OutputVoltage     ups.Volts        `json:"output_voltage"`
@@ -143,8 +144,10 @@ type stateMessage struct {
 
 func newStateMessage(s ups.Status) stateMessage {
 	return stateMessage{
-		Mode:              s.Mode,
-		OnBattery:         s.Mode.OnBattery(),
+		Mode:      s.Mode,
+		OnBattery: s.Mode.OnBattery(),
+		// From the flag, not the mode: a self test runs on battery with mains present.
+		UtilityPower:      !s.Flags.UtilityFail,
 		InputVoltage:      s.InputVoltage,
 		InputFaultVoltage: s.InputFaultVoltage,
 		OutputVoltage:     s.OutputVoltage,

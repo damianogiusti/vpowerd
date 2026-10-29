@@ -17,10 +17,22 @@ func TestStateMessageJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(raw)
-	for _, want := range []string{`"mode":"battery"`, `"on_battery":true`, `"battery_charge":80`, `"runtime_remaining":null`} {
+	for _, want := range []string{`"mode":"battery"`, `"on_battery":true`, `"utility_power":false`, `"battery_charge":80`, `"runtime_remaining":null`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("state %s lacks %s", got, want)
 		}
+	}
+}
+
+// The UPS tests itself a few times a day; mains stay present during the test.
+func TestSelfTestKeepsUtilityPower(t *testing.T) {
+	s := ups.Status{Mode: ups.ModeBatteryTest, Flags: ups.StatusFlags{SelfTest: true}}
+	raw, err := json.Marshal(newStateMessage(s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(raw); !strings.Contains(got, `"utility_power":true`) {
+		t.Errorf("state %s reports a power loss during a self test", got)
 	}
 }
 
